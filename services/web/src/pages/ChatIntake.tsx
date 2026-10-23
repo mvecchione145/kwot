@@ -17,14 +17,14 @@ export function ChatIntake() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, draft, sending]);
 
-  async function send(text: string) {
+  async function send(text: string, finish = false) {
     const next: ChatMessage[] = [...messages, { role: "user", text }];
     setMessages(next);
     setInput("");
     setSending(true);
     setFailed(false);
     try {
-      const turn = await api.chat(next);
+      const turn = await api.chat(next, finish);
       setMessages([...next, { role: "assistant", text: turn.reply }]);
       if (turn.draft) setDraft(turn.draft);
     } catch {
@@ -53,22 +53,28 @@ export function ChatIntake() {
       </ol>
       {failed && (
         <p className="error" role="alert">
-          The assistant isn't responding. <Link to="/requests/new/form">Use the form instead</Link>
+          The assistant isn't responding.{" "}
+          <Link
+            to="/requests/new/write"
+            state={{ text: messages.filter((m) => m.role === "user").map((m) => m.text).join("\n\n") }}
+          >
+            Write it out instead
+          </Link>
         </p>
       )}
-      {draft && <RequestReview draft={draft} />}
+      {draft && <RequestReview draft={draft} onChange={setDraft} />}
       <div ref={endRef} />
       {!draft && (
         <form className="composer" onSubmit={onSubmit}>
           <input
             aria-label="Message"
-            placeholder="Type your answer…"
+            placeholder="Type a message…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             autoFocus
           />
           {messages.length > 0 && (
-            <button type="button" className="secondary" disabled={sending} onClick={() => void send("That's all.")}>
+            <button type="button" className="secondary" disabled={sending} onClick={() => void send("That's all.", true)}>
               Done
             </button>
           )}

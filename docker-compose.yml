@@ -61,8 +61,15 @@ services:
     build: ./services/assistant
     environment:
       PORT: 4100
+      # "ollama" (open-weights model, default) or "anthropic" (Claude, needs ANTHROPIC_API_KEY).
+      ASSISTANT_PROVIDER: ${ASSISTANT_PROVIDER:-ollama}
+      # The ollama container by default; http://host.docker.internal:11434 for a native Ollama.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-claude-opus-5-5}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./services/assistant/src:/app/src
     # Internal only: reached by the API, never by the browser.

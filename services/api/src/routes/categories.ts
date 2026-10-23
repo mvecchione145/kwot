@@ -3,10 +3,8 @@ import { pool } from "../db.js";
 
 export const categoriesRouter = Router();
 
-export async function listCategories() {
-  const { rows } = await pool.query(
-    "SELECT slug, name, questions FROM categories ORDER BY sort_order, name",
-  );
+export async function listCategories(): Promise<{ slug: string; name: string }[]> {
+  const { rows } = await pool.query("SELECT slug, name FROM categories ORDER BY sort_order, name");
   return rows;
 }
 

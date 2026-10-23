@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { keycloak, logout } from "./auth";
 import { ChatIntake } from "./pages/ChatIntake";
-import { FormIntake } from "./pages/FormIntake";
+import { EditDraft } from "./pages/EditDraft";
+import { FeedDetail } from "./pages/FeedDetail";
 import { Home } from "./pages/Home";
 import { Landing } from "./pages/Landing";
 import { NewRequest } from "./pages/NewRequest";
 import { Onboarding } from "./pages/Onboarding";
+import { RequestDetail } from "./pages/RequestDetail";
+import { Services } from "./pages/Services";
+import { WriteIntake } from "./pages/WriteIntake";
 import { useSession } from "./session";
 
 /** Requires a logged-in user who has finished onboarding (and optionally a specific role). */
@@ -40,7 +44,11 @@ export function App() {
           <Route path="/home" element={<Protected><Home /></Protected>} />
           <Route path="/requests/new" element={<Protected role="customer"><NewRequest /></Protected>} />
           <Route path="/requests/new/chat" element={<Protected role="customer"><ChatIntake /></Protected>} />
-          <Route path="/requests/new/form" element={<Protected role="customer"><FormIntake /></Protected>} />
+          <Route path="/requests/new/write" element={<Protected role="customer"><WriteIntake /></Protected>} />
+          <Route path="/requests/:id" element={<Protected role="customer"><RequestDetail /></Protected>} />
+          <Route path="/requests/:id/edit" element={<Protected role="customer"><EditDraft /></Protected>} />
+          <Route path="/feed/:id" element={<Protected role="servicer"><FeedDetail /></Protected>} />
+          <Route path="/services" element={<Protected role="servicer"><Services /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

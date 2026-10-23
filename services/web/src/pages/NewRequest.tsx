@@ -17,13 +17,13 @@ export function NewRequest() {
       <h1>What do you need help with?</h1>
       {assistantEnabled && (
         <Link to="/requests/new/chat" className="option-card">
-          <strong>Just tell us</strong>
-          <span className="muted">Describe it in your own words and we'll ask the right questions.</span>
+          <strong>Talk it through</strong>
+          <span className="muted">Chat with our assistant and it will write up the request for you.</span>
         </Link>
       )}
-      <Link to="/requests/new/form" className="option-card">
-        <strong>Fill out a form</strong>
-        <span className="muted">Pick a category and answer a few quick questions.</span>
+      <Link to="/requests/new/write" className="option-card">
+        <strong>Write it out</strong>
+        <span className="muted">Describe the job in your own words, as much or as little as you like.</span>
       </Link>
     </section>
   );

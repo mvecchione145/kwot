@@ -1,0 +1,112 @@
+name: kwot
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      APP_DB_NAME: ${APP_DB_NAME:-kwot}
+      APP_DB_USER: ${APP_DB_USER:-kwot}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-kwot}
+      KC_DB_NAME: ${KC_DB_NAME:-keycloak}
+      KC_DB_USER: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER:-postgres} -d ${APP_DB_NAME:-kwot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
+      # Tokens are always issued for the browser-facing URL, so the API (which
+      # reaches Keycloak at http://keycloak:8080) sees a consistent issuer.
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/localhost/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  assistant:
+    build: ./services/assistant
+    environment:
+      PORT: 4100
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-claude-opus-5-5}
+    volumes:
+      - ./services/assistant/src:/app/src
+    # Internal only: reached by the API, never by the browser.
+    expose:
+      - "4100"
+
+  api:
+    build: ./services/api
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://${APP_DB_USER:-kwot}:${APP_DB_PASSWORD:-kwot}@postgres:5432/${APP_DB_NAME:-kwot}
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/kwot
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/kwot/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: kwot-api
+      ASSISTANT_URL: http://assistant:4100
+    volumes:
+      - ./services/api/src:/app/src
+      - ./services/api/migrations:/app/migrations
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      assistant:
+        condition: service_started
+
+  web:
+    build: ./services/web
+    environment:
+      API_PROXY_TARGET: http://api:4000
+      VITE_KEYCLOAK_URL: http://localhost:8080
+      VITE_KEYCLOAK_REALM: kwot
+      VITE_KEYCLOAK_CLIENT_ID: kwot-web
+    volumes:
+      - ./services/web/src:/app/src
+      - ./services/web/public:/app/public
+      - ./services/web/index.html:/app/index.html
+      - ./services/web/vite.config.ts:/app/vite.config.ts
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:

@@ -2,13 +2,23 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { intendedRole, keycloak, type Role } from "../auth";
+import { ServiceFields } from "../components/ServiceFields";
 import { useSession } from "../session";
+
+export function onboardingError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === "unknown_zip") return "We don't recognize that ZIP code.";
+    if (err.status === 400) return "Check the ZIP code and choose at least one service.";
+  }
+  return "Something went wrong.";
+}
 
 export function Onboarding() {
   const { me, loading, setMe } = useSession();
   const navigate = useNavigate();
   const [role, setRole] = useState<Role | null>(intendedRole());
   const [zip, setZip] = useState("");
+  const [services, setServices] = useState({ categories: [] as string[], radiusMiles: 25 });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -19,13 +29,14 @@ export function Onboarding() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!role) return setError("Choose how you'll use kwōt.");
+    if (role === "servicer" && services.categories.length === 0) return setError("Choose at least one service.");
     setSaving(true);
     setError(null);
     try {
-      setMe(await api.onboard(role, zip));
+      setMe(await api.onboard(role === "customer" ? { role, zip } : { role, zip, ...services }));
       navigate("/home", { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 400 ? "Enter a 5-digit ZIP code." : "Something went wrong.");
+      setError(onboardingError(err));
     } finally {
       setSaving(false);
     }
@@ -62,7 +73,12 @@ export function Onboarding() {
           required
         />
       </label>
-      {error && <p className="error" role="alert">{error}</p>}
+      {role === "servicer" && <ServiceFields value={services} onChange={setServices} />}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <button className="primary big" disabled={saving}>
         {saving ? "Saving…" : "Continue"}
       </button>

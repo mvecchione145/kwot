@@ -15,16 +15,17 @@ outside the app.
 
 **Core loop**
 
-1. A customer starts a request, either by filling in a short form or by chatting with the kwōt assistant.
-2. kwōt gathers the details a servicer would need (yard size, number of zones, last service date, …).
+1. A customer describes what they need in their own words, either in an open text box or by chatting with the kwōt assistant.
+2. kwōt's AI turns that description into a **request document**: a clear, README-style write-up of the job that the customer reviews and can edit.
 3. The finished request opens for bidding.
 4. Servicers browse open requests, ask clarifying questions, and submit private bids.
 5. The customer compares bids and selects one or a few servicers. kwōt shares contact details between them.
 
 ## Product principles
 
-- **Simple and seamless:** Starting a request should feel as easy as sending a text. Ask only what's needed, one step at a time, with sensible defaults.
-- **The customer's choice of input:** Both the form and the chat produce the same structured request.
+- **Simple and seamless:** Starting a request should feel as easy as sending a text. No checklists or category-specific questionnaires: the customer says what they need, in their own words.
+- **The customer's choice of input:** Both the open text box and the chat produce the same request document.
+- **AI writes, the customer approves:** The AI organizes what the customer said into a readable document. It never invents details, and nothing is published until the customer approves it.
 - **Describe once:** Anything learned later, such as answers to servicers' questions, is added to the request so no one has to ask twice.
 - **Mobile-first:** Every flow is designed for a phone screen first.
 
@@ -42,7 +43,7 @@ Each account has exactly one role.
 - Runs locally with a single `docker compose up`.
 - Web only, built mobile-first (usable on a phone-sized screen without horizontal scrolling).
 - A user can sign up as a customer or a servicer and complete the main flow end to end:
-  post a request (form or chat) → bid on it → select servicer(s).
+  post a request (written or chatted) → bid on it → select servicer(s).
 
 Stories are tagged by priority:
 
@@ -65,8 +66,8 @@ Stories are tagged by priority:
   **when** I run `docker compose up`,
   **then** the web app, API, and database start, and the app is reachable at `http://localhost:<port>`.
 - Database migrations run automatically on startup.
-- Configuration comes from environment variables, with a committed `.env.example`. This includes the API key for the language model behind the chat assistant.
-- If no model API key is set, the app still runs and the chat option is hidden, so only the form is offered.
+- Configuration comes from environment variables, with a committed `.env.example`. This includes which model powers the assistant: an open-weights model served locally by Ollama (the POC default), or a hosted model.
+- If the assistant's model isn't available, the app still runs: the chat option is hidden, and the open text box publishes the customer's own text as the request document without AI formatting.
 - Data persists across restarts via a named volume. `docker compose down -v` resets it.
 
 ### US-0.2 Seed demo data (P1)
@@ -130,79 +131,91 @@ categories I offer, my service area, and my contact details, **so that** I'm sho
 
 ## Epic 2 — Starting a request (customer)
 
-The customer chooses how to start: **"Fill out a form"** or **"Just tell us"** (chat).
-Both paths produce the same structured request:
+Requests are open-ended. kwōt never walks the customer through category-specific
+questionnaires (yard size, number of zones, and so on). The customer describes the job
+in their own words, and kwōt's AI writes a **request document** from it.
 
-- Category
-- Title
-- Description
-- Answers to category-specific details
-- Timeframe
-- ZIP
+The request document is a README-style Markdown write-up of the job. Sections appear
+only when the customer gave information for them:
 
-### US-2.1 Choose form or chat (P0)
+```markdown
+# Flush irrigation system before winter
 
-**As a** customer, **I want** to pick between a quick form and a conversation,
-**so that** I can describe my need in whichever way feels easiest.
+## Summary
+One or two sentences on what the customer needs.
+
+## What needs to be done
+The work, in the customer's terms, organized into short paragraphs or bullets.
+
+## About the property
+Anything the customer mentioned about the site, equipment, or access.
+
+## Timing
+When the customer wants it done, if they said.
+
+## Notes for servicers
+Anything else useful: preferences, constraints, known problems.
+```
+
+Alongside the document, the AI picks a **category** (used only to match the request to
+servicers' trades) and a short **title**. The ZIP comes from the customer's profile.
+
+### US-2.1 Choose how to describe the job (P0)
+
+**As a** customer, **I want** to either write out what I need or talk it through,
+**so that** I can describe the job in whichever way feels easiest.
 
 **Acceptance criteria**
 
-- "New request" opens a screen with the two options, and each takes one tap on mobile.
+- "New request" offers **"Write it out"** (open text box) and **"Talk it through"** (chat), and each takes one tap on mobile.
 - The chat option is shown only when the assistant is configured (see US-0.1).
 
-### US-2.2 Start a request with a form (P0)
+### US-2.2 Write it out (P0)
 
-**As a** customer, **I want** a short, guided form tailored to the type of job,
-**so that** I give servicers what they need without guessing.
+**As a** customer, **I want** a single open text box where I describe the job however I like,
+**so that** posting a request takes seconds and never feels like filling in a form.
 
 **Acceptance criteria**
 
-- Step 1 asks me to pick a category and write a one-line description ("What do you need help with?").
-- Step 2 shows that category's question template. Irrigation, for example, asks:
-  - Approximate yard size (small / medium / large, or square footage)
-  - Number of zones
-  - When the system was last serviced
-  - Any known leaks or broken heads (yes / no + details)
-- Each question has a type: single choice, multiple choice, number, date, or free text. Each is either required or optional.
-- Questions appear one or a few at a time, with a progress indicator, and I can go back and change answers.
-- The final step asks for a timeframe (ASAP / within a week / flexible / specific dates). The ZIP defaults to the one on my profile.
+- The screen has one large text box ("Describe what you need, in your own words") and a **Create request** button. There are no category pickers, dropdowns, or required fields beyond the text itself.
+- Placeholder text gives a short example, so customers know they can write naturally.
+- On submit, the AI writes the request document, title, and category from my text and shows the review screen (US-2.4).
+- If the assistant isn't configured or fails, my own text becomes the document as written, under a title taken from its first line, filed under **Other**.
 
-### US-2.3 Start a request by chatting (P0)
+### US-2.3 Talk it through (P0)
 
-**As a** customer, **I want** to describe my need in my own words and have an assistant
-ask me follow-up questions, **so that** I don't have to know the right category or terms.
+**As a** customer, **I want** to chat with an assistant about what I need,
+**so that** I can get the job described without having to organize my thoughts first.
 
 **Acceptance criteria**
 
 - I start with a free-text message, such as "I need help flushing my irrigation system".
-- The assistant works out the category and asks follow-up questions one at a time, in plain language, until it has enough context. Enough context means:
-  - The category is known.
-  - The category template's required details are answered.
-  - The timeframe is known.
-- The assistant keeps asking within a reasonable limit (around 8 questions) and skips anything I've already said.
-- Answers can be free text. The assistant may also offer quick-reply chips for common answers, like "3–5 zones" or "Not sure".
-- I can say "that's all" or tap **Done** at any point. Any required details still missing are then asked in a short form.
-- If my request doesn't match a known category, the assistant still gathers the details and files it under **Other**.
+- The conversation stays open-ended. The assistant does not ask for specific measurements or details (yard size, number of zones, model numbers, …).
+- The assistant asks a follow-up only when it can't tell what the job is, plus at most one broad question such as "When would you like this done, and is there anything else a pro should know?". Most conversations finish in one to three turns.
+- I can tap **Done** at any point, and the assistant writes the document from what I've said.
+- When it's ready, the assistant writes the request document and I see the review screen (US-2.4).
 - The assistant stays on topic. Unrelated messages get a short redirect back to the request.
-- If the assistant service fails mid-conversation, I'm offered the form, pre-filled with what has been gathered so far.
-- The chat transcript is saved with the draft, but it is not shown to servicers.
+- If the assistant fails mid-conversation, I'm offered the open text box, pre-filled with what I've written so far.
+- The chat transcript is not shown to servicers. Only the request document is.
 
 ### US-2.4 Review and publish (P0)
 
-**As a** customer, **I want** to see a clean summary of my request before it goes out,
-**so that** I can confirm it's right, whichever way I created it.
+**As a** customer, **I want** to read the request document before it goes out,
+**so that** I can confirm it says what I meant, whichever way I created it.
 
 **Acceptance criteria**
 
-- The review screen shows the title, description, all details, timeframe, and ZIP as an editable summary. When I used the chat, the assistant writes the title and description.
-- I can edit any field in place before publishing.
-- On publish, the request status becomes **Open** and it becomes visible to matching servicers.
-- An unfinished request, whether form or chat, is saved as a **Draft** that I can resume.
+- The review screen shows the title and the rendered request document, formatted the way servicers will see it.
+- I can switch to edit mode and change the title or the document's Markdown directly.
+- I can change the category the AI picked. It decides which servicers see the request.
+- The document contains only what I said. The AI may reorganize and tidy my wording but never adds facts I didn't give.
+- On publish, the request status becomes **Open** and it becomes visible to servicers whose trades include the request's category.
+- An unfinished request, whether written or chatted, is saved as a **Draft** that I can resume.
 - An optional bidding deadline (default 7 days) is shown to servicers.
 
 ### US-2.5 Add photos (P1)
 
-**As a** customer, **I want** to attach photos in either the form or the chat,
+**As a** customer, **I want** to attach photos when writing or chatting,
 **so that** servicers can see the problem and price more accurately.
 
 ### US-2.6 Manage my requests (P0)
@@ -228,13 +241,13 @@ ask me follow-up questions, **so that** I don't have to know the right category 
 **Acceptance criteria**
 
 - The feed shows only **Open** requests that match my categories and area.
-- Each card shows the category, title, ZIP, timeframe, when it was posted, and how many bids it has.
+- Each card shows the category, title, the document's summary, ZIP, when it was posted, and how many bids it has.
 - I can filter by category and sort by newest or by bidding deadline.
 - Customer name and contact details are hidden.
 
 ### US-3.2 View request details (P0)
 
-**As a** servicer, **I want** to see the full request, including all details and any extended context,
+**As a** servicer, **I want** to read the full request document, including any extended context,
 **so that** I can decide whether to bid and how to price it.
 
 ### US-3.3 Ask a clarifying question (P0)
@@ -246,7 +259,7 @@ ask me follow-up questions, **so that** I don't have to know the right category 
 
 - I submit a question from the request page.
 - The customer is notified and answers from their request page.
-- Each answered question is added to the request's **Extended context** section as a question-and-answer pair, which every servicer viewing the request can see.
+- Each answered question is appended to the request document under an **Extended context** section, as a question-and-answer pair, which every servicer viewing the request can see.
 - The asking servicer's identity is never shown to other servicers.
 - Unanswered questions are visible only to the customer and the servicer who asked.
 - Servicers who have already bid are notified when extended context is added.
@@ -367,18 +380,18 @@ ask me follow-up questions, **so that** I don't have to know the right category 
 ## MVP demo script
 
 1. Run `docker compose up`.
-2. Sign up as **Customer A** and post an irrigation request using the **chat**: "I need help flushing my irrigation system". Answer the assistant's follow-up questions, review the summary, and publish.
+2. Sign up as **Customer A** and post an irrigation request using the **chat**: "I need help flushing my irrigation system". Review the request document the assistant writes, and publish.
 3. In a second browser or a private window, sign up as **Servicer B** (Irrigation, same area). Find the request, ask "Are any sprinkler heads broken?", and submit a bid.
 4. As Customer A, answer the question. It now appears under **Extended context** on the request.
 5. Sign up as **Servicer C**, see the extended context, and submit a bid.
 6. As Customer A, compare the bids and select Servicer B. Both sides now see each other's contact details.
 7. Close the request. Servicer C's bid becomes **Not selected** and C is notified.
-8. Sign up as **Customer D** and post a request using the **form** instead.
+8. Sign up as **Customer D** and post a request using the open text box instead.
 
 ## Decisions
 
 1. Each account has a single role.
-2. A request can be started with a form or a chat assistant, and both produce the same structured request.
+2. Requests are open-ended. The customer writes or chats in their own words, with no category questionnaires, and AI turns it into a README-style request document that the customer reviews and approves.
 3. Bids are private to the customer. Servicers see only the bid count.
 4. Answers to clarifying questions are added to the request as extended context, and askers are anonymous.
 5. No addresses are collected. kwōt's role ends when the customer selects servicers and contact details are exchanged.

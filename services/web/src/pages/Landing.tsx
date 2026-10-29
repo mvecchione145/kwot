@@ -5,8 +5,7 @@ export function Landing() {
     <section className="stack">
       <h1>Describe the job once. Get bids from local pros.</h1>
       <p className="muted">
-        Skip calling around. Post what you need, answer a few quick questions, and compare offers before anyone comes
-        out.
+        Skip calling around. Say what you need in your own words, and compare offers before anyone comes out.
       </p>
       <div className="stack">
         <button className="primary big" onClick={() => void register("customer")}>

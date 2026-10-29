@@ -5,5 +5,6 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY migrations ./migrations
+COPY data ./data
 EXPOSE 4000
 CMD ["npm", "run", "dev"]
